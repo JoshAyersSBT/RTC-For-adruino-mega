@@ -9,7 +9,8 @@ const uint8_t BTN_NEXT_PIN = 3;   // Next/confirm button (to GND, uses INPUT_PUL
 const uint8_t BTN_INC_PIN  = 4;   // Increment button (to GND, uses INPUT_PULLUP)
 
 // LCD module connections (RS, E, D4, D5, D6, D7)
-LiquidCrystal lcd(5, 6, 7, 8, 9, 10);
+// NOTE: Tie LCD RW pin to GND on the hardware.
+LiquidCrystal lcd(30, 31, 32, 33, 34, 35);
 
 // ---- Globals ----
 char Time[]     = "TIME:  :  :  ";
@@ -20,19 +21,24 @@ void setup() {
   pinMode(BTN_NEXT_PIN, INPUT_PULLUP);
   pinMode(BTN_INC_PIN,  INPUT_PULLUP);
 
+  delay(50);               // allow LCD power/contrast to settle
   lcd.begin(16, 2);
-  Wire.begin(); // On Mega this uses SDA(20), SCL(21)
+  Wire.begin();            // On Mega this uses SDA(20), SCL(21)
+
+  Serial.begin(9600);      // Serial Monitor
+  while (!Serial) { ; }    // harmless on Mega
 }
 
 void DS1307_display() {
   // Convert BCD to decimal (work on local copies)
-  byte s = (second_ >> 4) * 10 + (second_ & 0x0F);
-  byte m = (minute_ >> 4) * 10 + (minute_ & 0x0F);
-  byte h = (hour_   >> 4) * 10 + (hour_   & 0x0F);
-  byte d = (date_   >> 4) * 10 + (date_   & 0x0F);
-  byte mo= (month_  >> 4) * 10 + (month_  & 0x0F);
-  byte y = (year_   >> 4) * 10 + (year_   & 0x0F);
+  byte s  = (second_ >> 4) * 10 + (second_ & 0x0F);
+  byte m  = (minute_ >> 4) * 10 + (minute_ & 0x0F);
+  byte h  = (hour_   >> 4) * 10 + (hour_   & 0x0F);
+  byte d  = (date_   >> 4) * 10 + (date_   & 0x0F);
+  byte mo = (month_  >> 4) * 10 + (month_  & 0x0F);
+  byte y  = (year_   >> 4) * 10 + (year_   & 0x0F);
 
+  // --- LCD update ---
   Time[12]     = (s % 10) + '0';
   Time[11]     = (s / 10) + '0';
   Time[9]      = (m % 10) + '0';
@@ -49,6 +55,15 @@ void DS1307_display() {
 
   lcd.setCursor(0, 0); lcd.print(Time);
   lcd.setCursor(0, 1); lcd.print(Calendar);
+
+  // --- Serial print once per second ---
+  static uint8_t lastS = 255;
+  if (s != lastS) {
+    lastS = s;
+    char buf[32]; // HH:MM:SS  DD/MM/20YY
+    snprintf(buf, sizeof(buf), "%02u:%02u:%02u  %02u/%02u/20%02u", h, m, s, d, mo, y);
+    Serial.println(buf);
+  }
 }
 
 void blink_parameter() {
@@ -99,7 +114,7 @@ void loop() {
     minute_ = edit(8, 0, ((minute_ >> 4) * 10 + (minute_ & 0x0F)));
     date_   = edit(5, 1, ((date_   >> 4) * 10 + (date_   & 0x0F)));
     month_  = edit(8, 1, ((month_  >> 4) * 10 + (month_  & 0x0F)));
-    year_   = edit(13,1, ((year_   >> 4) * 10 + (year_   & 0x0F)));
+    year_   = edit(13, 1, ((year_   >> 4) * 10 + (year_   & 0x0F)));
 
     // Convert decimal to BCD
     byte m_bcd  = ((minute_ / 10) << 4) | (minute_ % 10);
@@ -124,7 +139,7 @@ void loop() {
 
   // Read time from DS1307
   Wire.beginTransmission(0x68);
-  Wire.write(0x00);           // seconds register
+  Wire.write(0x00);            // seconds register
   Wire.endTransmission(false); // repeated start
   Wire.requestFrom(0x68, 7);
 
