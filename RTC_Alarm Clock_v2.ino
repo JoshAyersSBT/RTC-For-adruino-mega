@@ -2,10 +2,12 @@
 #include <RTClib.h>
 #include <LiquidCrystal.h>
 
+// === Pin Definitions ===
 #define BTN_NEXT_PIN 3
 #define BTN_INC_PIN 4
 #define BUZZER_PIN 2
 
+// LCD pins (RS, E, D4, D5, D6, D7)
 LiquidCrystal lcd(5, 6, 7, 8, 9, 10);
 RTC_DS3231 rtc;
 
@@ -32,11 +34,11 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
 
   lcd.begin(16, 2);
-  Wire.begin();
-  rtc.begin();
+  Wire.begin();  // Automatically uses SDA/SCL for Mega (pins 20, 21)
 
+  rtc.begin();
   if (rtc.lostPower()) {
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); // Set RTC to compile time
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
 
   lcd.clear();
@@ -81,6 +83,12 @@ void handleButtons() {
   if (digitalRead(BTN_NEXT_PIN) == LOW) {
     lastDebounce = millis();
 
+    if (alarmTriggered) {
+      digitalWrite(BUZZER_PIN, LOW);
+      alarmTriggered = false;
+      return;
+    }
+
     if (currentMode == MODE_TIME_DISPLAY) {
       currentMode = MODE_SET_TIME;
       editField = 0;
@@ -122,13 +130,7 @@ void checkAlarm() {
       currentTime.minute() == alarmMinute &&
       currentTime.second() == 0 &&
       !alarmTriggered) {
-
     digitalWrite(BUZZER_PIN, HIGH);
     alarmTriggered = true;
-  }
-
-  if (alarmTriggered && digitalRead(BTN_NEXT_PIN) == LOW) {
-    digitalWrite(BUZZER_PIN, LOW);
-    alarmTriggered = false;
   }
 }
